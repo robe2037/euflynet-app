@@ -1,6 +1,7 @@
-library("moveapps")
-library("move2")
-library("lubridate")
+library(move2)
+library(ggplot2)
+library(ggspatial)
+library(prettymapr)
 
 ## The parameter "data" is reserved for the data object passed on from the previous app
 
@@ -8,31 +9,29 @@ library("lubridate")
 # one can use the function from the logger.R file:
 # logger.fatal(), logger.error(), logger.warn(), logger.info(), logger.debug(), logger.trace()
 
-# Showcase injecting app setting (parameter `year`)
-rFunction = function(data, sdk, year, ...) {
-  logger.info(paste("Welcome to the", sdk))
-  result <- if (any(lubridate::year(move2::mt_time(data)) == year)) { 
-    data[lubridate::year(move2::mt_time(data)) == year,]
-  } else {
-    NULL
-  }
-  if (!is.null(result)) {
-    # Showcase creating an app artifact. 
-    # This artifact can be downloaded by the workflow user on Moveapps.
-    artifact <- appArtifactPath("plot.png")
-    logger.info(paste("plotting to artifact:", artifact))
-    png(artifact)
-    plot(result[move2::mt_track_id_column(result)], max.plot=1)
-    dev.off()
-  } else {
-    logger.warn("nothing to plot")
-  }
-  # Showcase to access a file ('auxiliary files') that is 
-  # a) provided by the app-developer and 
-  # b) can be overridden by the workflow user.
-  fileName <- getAuxiliaryFilePath("auxiliary-file-a")
-  logger.info(readChar(fileName, file.info(fileName)$size))
-
+rFunction = function(data, linewidth, ...) {
+  # Create basemap with scale bar
+  basemap <- ggplot() +
+    annotation_map_tile(type = "cartolight", zoomin = 0) +
+    annotation_scale(location = "br")
+  
+  # Add track line segments
+  map <- basemap + 
+    geom_sf(
+      data = mt_track_lines(data),
+      aes(color = .data[[mt_track_id_column(data)]]),
+      alpha = 0.8,
+      linewidth = linewidth
+    )
+  
+  # Adjust plot theme
+  map <- map + 
+    theme_linedraw() +
+    guides(color = "none")
+  
+  # Save to output file
+  ggsave(moveapps::appArtifactPath("example_track_lines.png"), plot = map)
+  
   # provide my result to the next app in the MoveApps workflow
-  return(result)
+  return(data)
 }
